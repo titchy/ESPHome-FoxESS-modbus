@@ -2,6 +2,7 @@ esphome:
   name: foxess-inverter
   friendly_name: foxess-inverter
 
+
 esp32:
   board: esp32dev
   framework:
@@ -15,7 +16,7 @@ logger:
 # Enable Home Assistant API
 api:
   encryption:
-    key: "replaceThis"
+    key: "replace"
 
 ota:
 
@@ -27,7 +28,7 @@ wifi:
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "Inverter Fallback Hotspot"
-    password: "replaceThis"
+    password: "replace"
 
 captive_portal:
 
@@ -65,10 +66,6 @@ modbus_controller:
   command_throttle: 400ms
   setup_priority: -10
   update_interval: 30s
-
-button:
-  - platform: restart
-    name: "Foxess inverter restart"
 
 text_sensor:
   - platform: modbus_controller
@@ -372,6 +369,255 @@ sensor:
     name: "Inverter Power Apparent"
     address: 11013
     unit_of_measurement: "VA"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: grid_frequency
+    name: "Grid Frequency"
+    address: 11014
+    unit_of_measurement: "Hz"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.01
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: eps_voltage
+    name: "EPS Voltage"
+    address: 11015
+    unit_of_measurement: "V"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: eps_current
+    name: "EPS Current"
+    address: 11016
+    unit_of_measurement: "A"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: eps_power
+    name: "EPS Power"
+    address: 11017
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: eps_power_Q
+    name: "EPS Power Reactive"
+    address: 11018
+    unit_of_measurement: "VAR"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: eps_power_S
+    name: "EPS Power Apparent"
+    address: 11019
+    unit_of_measurement: "VA"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: eps_frequency
+    name: "EPS Frequency"
+    address: 11020
+    unit_of_measurement: "Hz"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.01
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: meter1_power
+    name: "Meter1 Power"
+    address: 11021
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: meter2_power
+    name: "Meter2 Power"
+    address: 11022
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: load_power
+    name: "Load Power"
+    address: 11023
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: inverter_temperature
+    name: "Inverter Temperature"
+    address: 11024
+    unit_of_measurement: "C"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: environment_temperature
+    name: "Environment Temperature"
+    address: 11025
+    unit_of_measurement: "C"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  ###These are not entirely understood, feels like some should be settable:
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: cluster_ctrl_f32_PwrFeedback_P
+    name: "Cluster Ctrl f32_Pwr Feedback_P"
+    address: 11026
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: cluster_ctrl_f32_PwrFeedback_Q
+    name: "Cluster Ctrl f32_Pwr Feedback_Q"
+    address: 11027
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: cluster_ctrl_f32_PwrSet_P_DnLimit
+    name: "Cluster Ctrl f32_PwrSet_P_Down Limit"
+    address: 11028
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: cluster_ctrl_f32_PwrSet_P_UpLimit
+    name: "Cluster Ctrl f32_PwrSet_P_Up Limit"
+    address: 11029
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: cluster_Ctrl_f32_PwrSet_Q_DnLimit
+    name: "Cluster Ctrl f32_PwrSet_Q_Down Limit"
+    address: 11030
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: cluster_ctrl_f32_PwrSet_Q_UpLimit
+    name: "Cluster Ctrl f32_PwrSet_Q_Up Limit"
+    address: 11031
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: ad_power_limit_flag
+    name: "Ad Power Limit Flag"
+    address: 11032
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: bad_power_limit_flag
+    name: "Bad Power Limit Flag"
+    address: 11033
+    unit_of_measurement: "kW"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
+  ####
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: bat_voltage
+    name: "Bat Voltage"
+    address: 11034
+    unit_of_measurement: "V"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: bat_current
+    name: "Bat Current"
+    address: 11035
+    unit_of_measurement: "A"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: battery_soc
+    name: "Battery SOC"
+    address: 11036
+    unit_of_measurement: "%"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
