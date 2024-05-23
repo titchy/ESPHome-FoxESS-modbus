@@ -38,6 +38,7 @@ uart:
   rx_pin: 17
   baud_rate: 9600
   stop_bits: 1
+  rx_buffer_size: 1024
 #  debug:
 #    direction: BOTH
 #    dummy_receiver: false
@@ -54,7 +55,7 @@ i2c:
   frequency: 50kHz
 
 modbus:
-  send_wait_time: 200ms
+  #send_wait_time: 200ms
   uart_id: uart_1
   id: mod_bus1
   flow_control_pin: 4
@@ -63,9 +64,9 @@ modbus_controller:
 - id: inverterBus
   address: 245
   modbus_id: mod_bus1
-  command_throttle: 400ms
+  #command_throttle: 400ms
   setup_priority: -10
-  update_interval: 30s
+  #update_interval: 30s
 
 text_sensor:
   - platform: modbus_controller
@@ -88,6 +89,63 @@ text_sensor:
     name: "Serial Number"
     skip_updates: 20
     response_size: 15
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    name: "rtc_clock"
+    id: rtc_clock
+    internal: true
+    register_type: read
+    address: 11093
+    register_count: 3
+    raw_encode: HEXBYTES
+    response_size: 6
+    #                /*
+    #                11093 Real time clock 9013 D7-0 Month, D15-8 Year
+    #                11094 Real time clock 9014 D7-0 Hour, D15-8 Day
+    #                11095 Real time clock 9015 D7-0 Second, D15-8 Minute
+    #                */
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGV("main", "decoding rtc hex encoded raw data: %s", x.c_str());
+            uint8_t h=0,m=0,s=0,d=0,month_=0,y = 0 ;
+            //{high8=99,low8=12} Year, Month
+            //{high8=31,low8=23} Day, Hour
+            //{high8=59,low8=59} Minute, Second
+            y = esphome::modbus_controller::byte_from_hex_str(x,0);  //High
+            month_ = esphome::modbus_controller::byte_from_hex_str(x,1);  //Low
+            d = esphome::modbus_controller::byte_from_hex_str(x,2);  //High
+            h = esphome::modbus_controller::byte_from_hex_str(x,3);  //Low
+            m = esphome::modbus_controller::byte_from_hex_str(x,4);  //High
+            s = esphome::modbus_controller::byte_from_hex_str(x,5);  //Low
+            // Now check if the rtc time of the controller is ok and correct it
+            time_t now = ::time(nullptr);
+            struct tm *time_info = ::localtime(&now);
+            int seconds = time_info->tm_sec;
+            int minutes = time_info->tm_min;
+            int hour = time_info->tm_hour;
+            int day = time_info->tm_mday;
+            int month = time_info->tm_mon + 1;
+            int year = time_info->tm_year % 100;
+            // correct time if needed (ignore seconds)
+            if (d != day || month_ != month || y != year || h != hour || m != minutes) {
+            // // create the payload
+            //  std::vector<uint16_t> rtc_data = {uint16_t((minutes << 8) | seconds), uint16_t((day << 8) | hour),
+            //                                    uint16_t((year << 8) | month)};
+            //  // Create a modbus command item with the time information as the payload
+            //  esphome::modbus_controller::ModbusCommandItem set_rtc_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(epever, 0x9013, 3, rtc_data);
+            //  // Submit the command to the send queue
+            //  epever->queue_command(set_rtc_command);
+            //  ESP_LOGI("ModbusLambda", "EPSOLAR RTC set to %02d:%02d:%02d %02d.%02d.%04d", hour, minutes, seconds, day, month, year + 2000);
+            }
+            char buffer[20];
+            // format time as YYYY-mm-dd hh:mm:ss
+            sprintf(buffer,"%04d-%02d-%02d %02d:%02d:%02d",y+2000,month_,d,h,m,s);
+            id(inverter_time).publish_state(buffer);
+
+  - platform: template
+    name: "Inverter Time"
+    id: inverter_time
 
 sensor:
   - platform: bme280_i2c
@@ -614,10 +672,482 @@ sensor:
       - multiply: 0.1
   - platform: modbus_controller
     modbus_controller_id: inverterBus
-    id: battery_soc
-    name: "Battery SOC"
+    id: bat_soc
+    name: "Bat SOC"
     address: 11036
     unit_of_measurement: "%"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Residual_Energy
+    name: "Bat Residual Energy"
+    address: 11037
+    unit_of_measurement: "Wh"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 10
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Temperature
+    name: "Bat Temperature"
+    address: 11038
+    unit_of_measurement: "C"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Charge_Cut_Voltage
+    name: "Bat Charge Cut Voltage"
+    address: 11039
+    unit_of_measurement: "V"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Discharge_Cut_Voltage
+    name: "Bat Discharge Cut Voltage"
+    address: 11040
+    unit_of_measurement: "V"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Max_Charge_Current
+    name: "Bat Max Charge Current"
+    address: 11041
+    unit_of_measurement: "A"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Max_Discharge_Current
+    name: "Bat Max Discharge Current"
+    address: 11042
+    unit_of_measurement: "A"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Cel_Temp_High
+    name: "Bat Cel Temp High"
+    address: 11043
+    unit_of_measurement: "C"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Cel_Temp_Low
+    name: "Bat Cel Temp Low"
+    address: 11044
+    unit_of_measurement: "C"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Cel_Voltage_High
+    name: "Bat Cel Voltage High"
+    address: 11045
+    unit_of_measurement: "V"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Cel_Voltage_Low
+    name: "Bat Cel Voltage Low"
+    address: 11046
+    unit_of_measurement: "V"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Subsystem_Number
+    name: "Bat Subsystem Number"
+    address: 11047
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Bad_Cycle_Count
+    name: "Bat Bad Cycle Count"
+    address: 11048
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Energy_Throughput
+    name: "Bat Energy Throughput"
+    address: 11049
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Min_Soc
+    name: "Bat Min SOC"
+    address: 11050
+    unit_of_measurement: "%"
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller ##This has {0=No,1=Yes} could be a text sensorwith required output
+    modbus_controller_id: inverterBus
+    id: Bat_Charge_Request
+    name: "Bat Charge Request"
+    address: 11051
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller ##Need to know what the unit is
+    modbus_controller_id: inverterBus
+    id: Bat_Charge_Limit
+    name: "Bat Charge Limit"
+    address: 11052
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_Discharge_Limit
+    name: "Bat Discharge Limit"
+    address: 11053
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: BatModuleType
+    name: "Bat Module Type"
+    address: 11054
+    register_type: read
+    value_type: S_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Connect_Time_Count
+    name: "Connect Time Count"
+    address: 11055
+    unit_of_measurement: "S"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller ##Text sensor? {0=wait,1=check,2=onGrid,3=offGrid,4=recoverableFault,5=unrecoverableFault}
+    modbus_controller_id: inverterBus
+    id: Inverter_State
+    name: "Inverter State"
+    address: 11056
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Bat_State
+    name: "Bat State" ##Text Sensor? {0=idle,1=normal,2=offline}
+    address: 11057
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: BMS_Connect_State
+    name: "BMS Connect State" #Text Sensor? {0=Initial state,1=OK,2=NG}
+    address: 11058
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Meter1_Connect_State
+    name: "Meter1 Connect State" #Text Sensor? {0=OK,1=NG}
+    address: 11059
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Meter2_Connect_State
+    name: "Meter2 Connect State" #Text Sensor? {0=OK,1=NG}
+    address: 11060
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Fault1
+    name: "Fault1" #Need input on what this output indicates
+    address: 11061
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Fault2
+    name: "Fault2" #Need input on what this output indicates
+    address: 11062
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Fault3
+    name: "Fault3" #Need input on what this output indicates
+    address: 11063
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Fault4
+    name: "Fault4" #Need input on what this output indicates
+    address: 11064
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Fault5
+    name: "Fault5" #Need input on what this output indicates
+    address: 11065
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Fault6
+    name: "Fault6" #Need input on what this output indicates
+    address: 11066
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Fault7
+    name: "Fault7" #Need input on what this output indicates
+    address: 11067
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Fault8
+    name: "Fault8" #Need input on what this output indicates
+    address: 11068
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Total_PV_Energy
+    name: "Total PV Energy"
+    address: 11069
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_DWORD
+    response_size: 4
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Today_PV_Energy
+    name: "Today PV Energy"
+    address: 11071
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Total_Charge_Energy
+    name: "Total Charge Energy"
+    address: 11072
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_DWORD
+    response_size: 4
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Today_Charge_Energy
+    name: "Today Charge Energy"
+    address: 11074
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Total_Discharge_Energy
+    name: "Total Discharge Energy"
+    address: 11075
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_DWORD
+    response_size: 4
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Today_Discharge_Energy
+    name: "Today Discharge Energy"
+    address: 11077
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Total_feed_in_Energy
+    name: "Total feed-in Energy"
+    address: 11078
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_DWORD
+    response_size: 4
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Today_feed_in_Energy
+    name: "Today feed-in Energy"
+    address: 11080
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Total_consumption_Energy
+    name: "Total consumption Energy"
+    address: 11081
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_DWORD
+    response_size: 4
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Today_consumption_Energy
+    name: "Today consumption Energy"
+    address: 11083
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Total_Output_Energy
+    name: "Total Output Energy"
+    address: 11084
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_DWORD
+    response_size: 4
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Today_Output_Energy
+    name: "Today Output Energy"
+    address: 11086
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Total_Input_Energy
+    name: "Total Input Energy"
+    address: 11087
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_DWORD
+    response_size: 4
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Today_Input_Energy
+    name: "Today Input Energy"
+    address: 11089
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Total_Load_Energy
+    name: "Total Load Energy"
+    address: 11090
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_DWORD
+    response_size: 4
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    id: Today_Load_Energy
+    name: "Today Load Energy"
+    address: 11092
+    unit_of_measurement: "Kwh"
+    register_type: read
+    value_type: U_WORD
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
