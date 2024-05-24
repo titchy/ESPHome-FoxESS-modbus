@@ -96,6 +96,7 @@ text_sensor:
     internal: true
     register_type: read
     address: 11093
+    force_new_range: True
     register_count: 3
     raw_encode: HEXBYTES
     response_size: 6
@@ -972,6 +973,7 @@ sensor:
     id: Total_PV_Energy
     name: "Total PV Energy"
     address: 11069
+    force_new_range: True
     unit_of_measurement: "Kwh"
     register_type: read
     value_type: U_DWORD
