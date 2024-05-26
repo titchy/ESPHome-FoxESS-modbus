@@ -89,6 +89,7 @@ text_sensor:
     name: "Serial Number"
     skip_updates: 20
     response_size: 15
+  
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     name: "rtc_clock"
@@ -143,10 +144,73 @@ text_sensor:
             // format time as YYYY-mm-dd hh:mm:ss
             sprintf(buffer,"%04d-%02d-%02d %02d:%02d:%02d",y+2000,month_,d,h,m,s);
             id(inverter_time).publish_state(buffer);
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    name: "charge_windows"
+    id: charge_windows
+    internal: true
+    register_type: read
+    address: 41001
+    force_new_range: True
+    register_count: 6
+    raw_encode: HEXBYTES
+    response_size: 12
+    on_value:
+      then:
+        - lambda: |-
+            ESP_LOGV("main", "decoding forced charge values encoded raw data: %s", x.c_str());
+            uint8_t w1enabled=0,w2enabled=0,w1startHour=0,w1startMin=0,w1endHour=0,w1endMin=0,w2startHour=0,w2startMin=0,w2endHour=0,w2endMin=0;
+            // w1enabled 0 or 1 in 1st word bytes 0 and 1 {0=disable,1=enable}
+            w1enabled = esphome::modbus_controller::word_from_hex_str(x,0);
+            // w1start High and low bytes in 2nd word, bytes 2 and 3 {HighByte=Hour,LowByte=Minutes}
+            w1startHour = esphome::modbus_controller::byte_from_hex_str(x,2);  //High
+            w1startMin = esphome::modbus_controller::byte_from_hex_str(x,3);  //Low
+            // w1end High and low bytes in 3rd word, bytes 4 and 5 {HighByte=Hour,LowByte=Minutes}
+            w1endHour = esphome::modbus_controller::byte_from_hex_str(x,4);  //High
+            w1endMin = esphome::modbus_controller::byte_from_hex_str(x,5);  //Low
+            // w2enabled 0 or 2 in 4th word, bytes 6 and 7 {0=disable,1=enable}
+            w2enabled = esphome::modbus_controller::word_from_hex_str(x,6);
+            // w2start High and low bytes in 5th word {HighByte=Hour,LowByte=Minutes}
+            w2startHour = esphome::modbus_controller::byte_from_hex_str(x,8);  //High
+            w2startMin = esphome::modbus_controller::byte_from_hex_str(x,9);  //Low
+            // w2end High and low bytes in 6th word {HighByte=Hour,LowByte=Minutes}
+            w2endHour = esphome::modbus_controller::byte_from_hex_str(x,10);  //High
+            w2endMin = esphome::modbus_controller::byte_from_hex_str(x,11);  //Low
+            char buffer[20];
+            sprintf(buffer,"%02d",w1enabled);
+            id(inverter_charge_window_1_enabled).publish_state(buffer);
+            sprintf(buffer,"%02d:%02d",w1startHour,w1startMin);
+            id(inverter_charge_window_1_start).publish_state(buffer);
+            sprintf(buffer,"%02d:%02d",w1endHour,w1endMin);
+            id(inverter_charge_window_1_end).publish_state(buffer);
+            sprintf(buffer,"%02d",w2enabled);
+            id(inverter_charge_window_2_enabled).publish_state(buffer);
+            sprintf(buffer,"%02d:%02d",w2startHour,w2startMin);
+            id(inverter_charge_window_2_start).publish_state(buffer);
+            sprintf(buffer,"%02d:%02d",w2endHour,w2endMin);
+            id(inverter_charge_window_2_end).publish_state(buffer);
 
   - platform: template
     name: "Inverter Time"
     id: inverter_time
+  - platform: template
+    name: "Inverter Charge Window 1 Enabled"
+    id: inverter_charge_window_1_enabled
+  - platform: template
+    name: "Inverter Charge Window 1 Start"
+    id: inverter_charge_window_1_start
+  - platform: template
+    name: "Inverter Charge Window 1 End"
+    id: inverter_charge_window_1_end
+  - platform: template
+    name: "Inverter Charge Window 2 Enabled"
+    id: inverter_charge_window_2_enabled
+  - platform: template
+    name: "Inverter Charge Window 2 Start"
+    id: inverter_charge_window_2_start
+  - platform: template
+    name: "Inverter Charge Window 2 End"
+    id: inverter_charge_window_2_end
 
 sensor:
   - platform: bme280_i2c
@@ -1153,3 +1217,16 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
+
+select:
+  - platform: modbus_controller
+    name: "Work Mode"
+    id: work_mode
+    address: 41000
+    force_new_range: True
+    value_type: U_WORD
+    register_count: 1
+    optionsmap:
+      "Self Use": 0
+      "Feed-in First": 1
+      "Backup": 2
