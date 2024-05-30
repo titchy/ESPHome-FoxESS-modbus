@@ -68,6 +68,47 @@ modbus_controller:
   setup_priority: -10
   #update_interval: 30s
 
+button:
+  - platform: template
+    name: "Set Charge Windows" #Going to grab valus from the windows settings and write all 6 modbus parameters back to the inverter
+    id: set_charge_windows
+    on_press:
+      - logger.log: "Set Charge Windows Button pressed"
+      - lambda: |-
+          ESP_LOGV("main", "Set Charge Windows Button pressed");
+          if (1 == 1) {
+          // // create the payload
+          //  std::vector<uint16_t> rtc_data = {uint16_t((minutes << 8) | seconds), uint16_t((day << 8) | hour),
+          //                                    uint16_t((year << 8) | month)};
+          //  // Create a modbus command item with the time information as the payload
+          //  esphome::modbus_controller::ModbusCommandItem set_rtc_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(epever, 0x9013, 3, rtc_data);
+          //  // Submit the command to the send queue
+          //  epever->queue_command(set_rtc_command);
+          //  ESP_LOGI("ModbusLambda", "EPSOLAR RTC set to %02d:%02d:%02d %02d.%02d.%04d", hour, minutes, seconds, day, month, year + 2000);
+          }
+
+datetime:
+  - platform: template
+    type: time
+    name: "Charge Window 1 Start"
+    id: charge_window_1_start
+    optimistic: yes
+  - platform: template
+    type: time
+    name: "Charge Window 1 End"
+    id: charge_window_1_end
+    optimistic: yes
+  - platform: template
+    type: time
+    name: "Charge Window 2 Start"
+    id: charge_window_2_start
+    optimistic: yes
+  - platform: template
+    type: time
+    name: "Charge Window 2 End"
+    id: charge_window_2_end
+    optimistic: yes
+
 text_sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
@@ -135,7 +176,7 @@ text_sensor:
             //  std::vector<uint16_t> rtc_data = {uint16_t((minutes << 8) | seconds), uint16_t((day << 8) | hour),
             //                                    uint16_t((year << 8) | month)};
             //  // Create a modbus command item with the time information as the payload
-            //  esphome::modbus_controller::ModbusCommandItem set_rtc_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(epever, 0x9013, 3, rtc_data);
+            //  esphome::modbus_controller::ModbusCommandItem set_rtc_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(epever, 11093, 3, rtc_data);
             //  // Submit the command to the send queue
             //  epever->queue_command(set_rtc_command);
             //  ESP_LOGI("ModbusLambda", "EPSOLAR RTC set to %02d:%02d:%02d %02d.%02d.%04d", hour, minutes, seconds, day, month, year + 2000);
@@ -162,6 +203,11 @@ text_sensor:
             uint8_t w1enabled=0,w2enabled=0,w1startHour=0,w1startMin=0,w1endHour=0,w1endMin=0,w2startHour=0,w2startMin=0,w2endHour=0,w2endMin=0;
             // w1enabled 0 or 1 in 1st word bytes 0 and 1 {0=disable,1=enable}
             w1enabled = esphome::modbus_controller::word_from_hex_str(x,0);
+            if (w1enabled == 1) {
+              id(forced_charge_window_1).publish_state("Enable");
+            } else {
+              id(forced_charge_window_1).publish_state("Disable");
+            }
             // w1start High and low bytes in 2nd word, bytes 2 and 3 {HighByte=Hour,LowByte=Minutes}
             w1startHour = esphome::modbus_controller::byte_from_hex_str(x,2);  //High
             w1startMin = esphome::modbus_controller::byte_from_hex_str(x,3);  //Low
@@ -170,6 +216,11 @@ text_sensor:
             w1endMin = esphome::modbus_controller::byte_from_hex_str(x,5);  //Low
             // w2enabled 0 or 2 in 4th word, bytes 6 and 7 {0=disable,1=enable}
             w2enabled = esphome::modbus_controller::word_from_hex_str(x,6);
+            if (w2enabled == 1) {
+              id(forced_charge_window_2).publish_state("Enable");
+            } else {
+              id(forced_charge_window_2).publish_state("Disable");
+            }
             // w2start High and low bytes in 5th word {HighByte=Hour,LowByte=Minutes}
             w2startHour = esphome::modbus_controller::byte_from_hex_str(x,8);  //High
             w2startMin = esphome::modbus_controller::byte_from_hex_str(x,9);  //Low
@@ -179,98 +230,28 @@ text_sensor:
             char buffer[20];
             sprintf(buffer,"%02d",w1enabled);
             id(inverter_charge_window_1_enabled).publish_state(buffer);
-            sprintf(buffer,"%02d:%02d",w1startHour,w1startMin);
+            sprintf(buffer,"%02d:%02d:00",w1startHour,w1startMin);
+            auto call1 = id(charge_window_1_start).make_call();
+            call1.set_time(buffer);
+            call1.perform();
             id(inverter_charge_window_1_start).publish_state(buffer);
-            sprintf(buffer,"%02d:%02d",w1endHour,w1endMin);
+            sprintf(buffer,"%02d:%02d:00",w1endHour,w1endMin);
+            auto call2 = id(charge_window_1_end).make_call();
+            call2.set_time(buffer);
+            call2.perform();
             id(inverter_charge_window_1_end).publish_state(buffer);
             sprintf(buffer,"%02d",w2enabled);
             id(inverter_charge_window_2_enabled).publish_state(buffer);
             sprintf(buffer,"%02d:%02d",w2startHour,w2startMin);
+            auto call3 = id(charge_window_2_start).make_call();
+            call3.set_time(buffer);
+            call3.perform();
             id(inverter_charge_window_2_start).publish_state(buffer);
             sprintf(buffer,"%02d:%02d",w2endHour,w2endMin);
+            auto call4 = id(charge_window_2_end).make_call();
+            call4.set_time(buffer);
+            call4.perform();
             id(inverter_charge_window_2_end).publish_state(buffer);
-
-
-  #- platform: modbus_controller
-  #  modbus_controller_id: inverterBus
-  #  name: "Grid Charge Window 1 Start"
-  #  id: grid_charge_window_1_start
-  #  register_type: read
-  #  address: 41002
-  #  register_count: 1
-  #  raw_encode: HEXBYTES
-  #  response_size: 2
-  #  lambda: |-
-  #    ESP_LOGV("main", "decoding gcw hex encoded raw data: %s", x.c_str());
-  #    uint8_t h=0,m=0 ;
-  #    //{high8=59,low8=59} Hour, Minutes
-  #    h = esphome::modbus_controller::byte_from_hex_str(x,0);  //High
-  #    m = esphome::modbus_controller::byte_from_hex_str(x,1);  //Low
-  #    // Now check if the rtc time of the controller is ok and correct it
-  #    char buffer[20];
-  #    // format time as hh:mm
-  #    sprintf(buffer,"%02d:%02d",h,m);
-  #    return std::string(buffer);
-  #- platform: modbus_controller
-  #  modbus_controller_id: inverterBus
-  #  name: "Grid Charge Window 1 End"
-  #  id: grid_charge_window_1_end
-  #  register_type: read
-  #  address: 41003
-  #  register_count: 1
-  #  raw_encode: HEXBYTES
-  #  response_size: 2
-  #  lambda: |-
-  #    ESP_LOGV("main", "decoding gcw hex encoded raw data: %s", x.c_str());
-  #    uint8_t h=0,m=0 ;
-  #    //{high8=59,low8=59} Hour, Minutes
-  #    h = esphome::modbus_controller::byte_from_hex_str(x,0);  //High
-  #    m = esphome::modbus_controller::byte_from_hex_str(x,1);  //Low
-  #    // Now check if the rtc time of the controller is ok and correct it
-  #    char buffer[20];
-  #    // format time as hh:mm
-  #    sprintf(buffer,"%02d:%02d",h,m);
-  #    return std::string(buffer);
-  #- platform: modbus_controller
-  #  modbus_controller_id: inverterBus
-  #  name: "Grid Charge Window 2 Start"
-  #  id: grid_charge_window_2_start
-  #  register_type: read
-  #  address: 41005
-  #  register_count: 1
-  #  raw_encode: HEXBYTES
-  #  response_size: 2
-  #  lambda: |-
-  #    ESP_LOGV("main", "decoding gcw hex encoded raw data: %s", x.c_str());
-  #    uint8_t h=0,m=0 ;
-  #    //{high8=59,low8=59} Hour, Minutes
-  #    h = esphome::modbus_controller::byte_from_hex_str(x,0);  //High
-  #    m = esphome::modbus_controller::byte_from_hex_str(x,1);  //Low
-  #    // Now check if the rtc time of the controller is ok and correct it
-  #    char buffer[20];
-  #    // format time as hh:mm
-  #    sprintf(buffer,"%02d:%02d",h,m);
-  #    return std::string(buffer);
-  #- platform: modbus_controller
-  #  modbus_controller_id: inverterBus
-  #  name: "Grid Charge Window 2 End"
-  #  id: grid_charge_window_2_end
-  #  register_type: read
-  #  address: 41006
-  #  register_count: 1
-  #  raw_encode: HEXBYTES
-  #  response_size: 2
-  #  lambda: |-
-  #    ESP_LOGV("main", "decoding gcw hex encoded raw data: %s", x.c_str());
-  #    uint8_t h=0,m=0 ;
-  #    //{high8=59,low8=59} Hour, Minutes
-  #    h = esphome::modbus_controller::byte_from_hex_str(x,0);  //High
-  #    m = esphome::modbus_controller::byte_from_hex_str(x,1);  //Low
-  #    // Now check if the rtc time of the controller is ok and correct it
-  #    char buffer[20];
-  #    // format time as hh:mm
-  #    sprintf(buffer,"%02d:%02d",h,m);
-  #    return std::string(buffer);
 
   - platform: template
     name: "Inverter Time"
@@ -774,8 +755,8 @@ sensor:
       - multiply: 0.001
   - platform: modbus_controller
     modbus_controller_id: inverterBus
-    id: ad_power_limit_flag
-    name: "Ad Power Limit Flag"
+    id: ac_power_limit_flag
+    name: "AC Power Limit Flag"
     address: 11032
     unit_of_measurement: "kW"
     register_type: read
@@ -785,8 +766,8 @@ sensor:
       - multiply: 0.001
   - platform: modbus_controller
     modbus_controller_id: inverterBus
-    id: bad_power_limit_flag
-    name: "Bad Power Limit Flag"
+    id: bat_power_limit_flag
+    name: "Bat Power Limit Flag"
     address: 11033
     unit_of_measurement: "kW"
     register_type: read
@@ -1299,10 +1280,35 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
+  - platform: modbus_controller
+    modbus_controller_id: inverterBus
+    name: "Grounding"
+    id: grounding
+    address: 41016
+    force_new_range: True
+    register_type: read
+    value_type: U_WORD
+    register_count: 1
+    accuracy_decimals: 1
 
   
 
 select:
+  - platform: template
+    name: "Forced Charge Window 1"
+    id: forced_charge_window_1
+    optimistic: True
+    options: 
+      - "Enable"
+      - "Disable"
+  - platform: template
+    name: "Forced Charge Window 2"
+    id: forced_charge_window_2
+    optimistic: True
+    options: 
+      - "Enable"
+      - "Disable"
+
   - platform: modbus_controller
     name: "Work Mode"
     id: work_mode
@@ -1314,26 +1320,36 @@ select:
       "Self Use": 0
       "Feed-in First": 1
       "Backup": 2
-  #- platform: modbus_controller
-  #  name: "Grid Charge Window 1"
-  #  id: grid_charge_window_1
-  #  address: 41001
-  #  use_write_multiple: True
-  #  value_type: S_WORD
-  #  register_count: 1
-  #  optionsmap:
-  #    "Disable": 0
-  #    "Enable": 1
-  #- platform: modbus_controller
-  #  name: "Grid Charge Window 2"
-  #  id: grid_charge_window_2
-  #  address: 41004
-  #  use_write_multiple: True
-  #  value_type: S_WORD
-  #  register_count: 1
-  #  optionsmap:
-  #    "Disable": 0
-  #    "Enable": 1
+  - platform: modbus_controller
+    name: "System Enable"
+    id: system_enable
+    address: 41013
+    force_new_range: True
+    value_type: U_WORD
+    register_count: 1
+    optionsmap:
+      "Off": 0
+      "On": 1
+  - platform: modbus_controller
+    name: "EPS frequency Select"
+    id: eps_frequency_select
+    address: 41014
+    force_new_range: True
+    value_type: U_WORD
+    register_count: 1
+    optionsmap:
+      "50 Hz": 0
+      "60 Hz": 1
+  - platform: modbus_controller
+    name: "EPS enable"
+    id: eps_enable
+    address: 41015
+    force_new_range: True
+    value_type: U_WORD
+    register_count: 1
+    optionsmap:
+      "Disable": 0
+      "Enable": 1
   
 number:
   - platform: modbus_controller
@@ -1341,9 +1357,10 @@ number:
     id: maximum_charge_current
     name: "Maximum Charge Current"
     address: 41007
+    force_new_range: True
     unit_of_measurement: "A"
     register_type: holding
-    value_type: S_WORD
+    value_type: U_WORD
     min_value: 0
     max_value: 50
   - platform: modbus_controller
@@ -1351,9 +1368,10 @@ number:
     id: maximum_discharge_current
     name: "Maximum Discharge Current"
     address: 41008
+    force_new_range: True
     unit_of_measurement: "A"
     register_type: holding
-    value_type: S_WORD
+    value_type: U_WORD
     min_value: 0
     max_value: 50
   - platform: modbus_controller
@@ -1361,9 +1379,10 @@ number:
     id: minimum_soc
     name: "Minimum SoC"
     address: 41009
+    force_new_range: True
     unit_of_measurement: "%"
     register_type: holding
-    value_type: S_WORD
+    value_type: U_WORD
     min_value: 0
     max_value: 100
   - platform: modbus_controller
@@ -1371,9 +1390,10 @@ number:
     id: maximum_soc
     name: "Maximum SOC"
     address: 41010
+    force_new_range: True
     unit_of_measurement: "%"
     register_type: holding
-    value_type: S_WORD
+    value_type: U_WORD
     min_value: 0
     max_value: 100
   - platform: modbus_controller
@@ -1381,9 +1401,10 @@ number:
     id: minimum_soc_on_grid
     name: "Minimum SoC on Grid"
     address: 41011
+    force_new_range: True
     unit_of_measurement: "%"
     register_type: holding
-    value_type: S_WORD
+    value_type: U_WORD
     min_value: 0
     max_value: 100
   - platform: modbus_controller
@@ -1391,6 +1412,7 @@ number:
     id: export_limit
     name: "Export Limit"
     address: 41012
+    force_new_range: True
     unit_of_measurement: "W"
     register_type: holding
     value_type: U_WORD
