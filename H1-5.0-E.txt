@@ -76,18 +76,29 @@ button:
       - logger.log: "Set Charge Windows Button pressed"
       - lambda: |-
           ESP_LOGV("main", "Set Charge Windows Button pressed");
-          if (1 == 1) {
-          // // create the payload
-          //  std::vector<uint16_t> rtc_data = {uint16_t((minutes << 8) | seconds), uint16_t((day << 8) | hour),
-          //                                    uint16_t((year << 8) | month)};
-          //  // Create a modbus command item with the time information as the payload
-          //  esphome::modbus_controller::ModbusCommandItem set_rtc_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(epever, 0x9013, 3, rtc_data);
-          //  // Submit the command to the send queue
-          //  epever->queue_command(set_rtc_command);
-          //  ESP_LOGI("ModbusLambda", "EPSOLAR RTC set to %02d:%02d:%02d %02d.%02d.%04d", hour, minutes, seconds, day, month, year + 2000);
-          }
+          uint16_t Window1Enabled=0,Window2Enabled=0;
+          if (id(forced_charge_window_1).state == "Enable") {Window1Enabled=1;};
+          if (id(forced_charge_window_2).state == "Enable") {Window2Enabled=1;};
+          esphome::modbus_controller::ModbusController *controller = id(inverterBus);
+          // 1 or 0 in 1st and 4th register and HighByte=Hour,LowByte=Minutes in 2nd 3rd 5th and 6th registers
+          std::vector<uint16_t> charge_data = {
+          Window1Enabled,
+          uint16_t((id(charge_window_1_start).hour << 8) | id(charge_window_1_start).minute ),
+          uint16_t((id(charge_window_1_end).hour << 8) | id(charge_window_1_end).minute ),
+          Window2Enabled,
+          uint16_t((id(charge_window_2_start).hour << 8) | id(charge_window_2_start).minute ),
+          uint16_t((id(charge_window_2_end).hour << 8) | id(charge_window_2_end).minute )
+          };
+          ESP_LOGV("main", "Setting charge window with data");
+          esphome::modbus_controller::ModbusCommandItem set_charge_data_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(controller, 41001, charge_data.size(), charge_data);
+          controller->queue_command(set_charge_data_command);
 
 datetime:
+  #- platform: template
+  #  type: datetime 
+  #  name: "Inverter Clock"
+  #  id: inverter_clock
+  #  optimistic: yes
   - platform: template
     type: time
     name: "Charge Window 1 Start"
@@ -172,18 +183,26 @@ text_sensor:
             int year = time_info->tm_year % 100;
             // correct time if needed (ignore seconds)
             if (d != day || month_ != month || y != year || h != hour || m != minutes) {
-            // // create the payload
-            //  std::vector<uint16_t> rtc_data = {uint16_t((minutes << 8) | seconds), uint16_t((day << 8) | hour),
-            //                                    uint16_t((year << 8) | month)};
+              ESP_LOGV("RTCModbusLambda", "RTC is not set correctly, setting...");
+            //  esphome::modbus_controller::ModbusController *thecontroller = id(inverterBus);
+            //  // create the payload
+            // std::vector<uint16_t> rtc_data = {
+            //    uint16_t((minutes << 8) | seconds), 
+            //    uint16_t((day << 8) | hour),
+            //    uint16_t((year << 8) | month)
+            //  };
             //  // Create a modbus command item with the time information as the payload
-            //  esphome::modbus_controller::ModbusCommandItem set_rtc_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(epever, 11093, 3, rtc_data);
+            //  esphome::modbus_controller::ModbusCommandItem set_rtc_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(thecontroller, 11093, 3, rtc_data);
             //  // Submit the command to the send queue
-            //  epever->queue_command(set_rtc_command);
-            //  ESP_LOGI("ModbusLambda", "EPSOLAR RTC set to %02d:%02d:%02d %02d.%02d.%04d", hour, minutes, seconds, day, month, year + 2000);
+            //  thecontroller->queue_command(set_rtc_command);
+            //  ESP_LOGI("RTCModbusLambda", "RTC set to %02d:%02d:%02d %02d.%02d.%04d", hour, minutes, seconds, day, month, year + 2000);
             }
             char buffer[20];
             // format time as YYYY-mm-dd hh:mm:ss
             sprintf(buffer,"%04d-%02d-%02d %02d:%02d:%02d",y+2000,month_,d,h,m,s);
+            //auto call5 = id(inverter_clock).make_call();
+            //call5.set_date(buffer);
+            //call5.perform();
             id(inverter_time).publish_state(buffer);
   - platform: modbus_controller
     modbus_controller_id: inverterBus
@@ -228,52 +247,26 @@ text_sensor:
             w2endHour = esphome::modbus_controller::byte_from_hex_str(x,10);  //High
             w2endMin = esphome::modbus_controller::byte_from_hex_str(x,11);  //Low
             char buffer[20];
-            sprintf(buffer,"%02d",w1enabled);
-            id(inverter_charge_window_1_enabled).publish_state(buffer);
             sprintf(buffer,"%02d:%02d:00",w1startHour,w1startMin);
             auto call1 = id(charge_window_1_start).make_call();
             call1.set_time(buffer);
             call1.perform();
-            id(inverter_charge_window_1_start).publish_state(buffer);
             sprintf(buffer,"%02d:%02d:00",w1endHour,w1endMin);
             auto call2 = id(charge_window_1_end).make_call();
             call2.set_time(buffer);
             call2.perform();
-            id(inverter_charge_window_1_end).publish_state(buffer);
-            sprintf(buffer,"%02d",w2enabled);
-            id(inverter_charge_window_2_enabled).publish_state(buffer);
             sprintf(buffer,"%02d:%02d",w2startHour,w2startMin);
             auto call3 = id(charge_window_2_start).make_call();
             call3.set_time(buffer);
             call3.perform();
-            id(inverter_charge_window_2_start).publish_state(buffer);
             sprintf(buffer,"%02d:%02d",w2endHour,w2endMin);
             auto call4 = id(charge_window_2_end).make_call();
             call4.set_time(buffer);
             call4.perform();
-            id(inverter_charge_window_2_end).publish_state(buffer);
 
   - platform: template
     name: "Inverter Time"
     id: inverter_time
-  - platform: template
-    name: "Inverter Charge Window 1 Enabled"
-    id: inverter_charge_window_1_enabled
-  - platform: template
-    name: "Inverter Charge Window 1 Start"
-    id: inverter_charge_window_1_start
-  - platform: template
-    name: "Inverter Charge Window 1 End"
-    id: inverter_charge_window_1_end
-  - platform: template
-    name: "Inverter Charge Window 2 Enabled"
-    id: inverter_charge_window_2_enabled
-  - platform: template
-    name: "Inverter Charge Window 2 Start"
-    id: inverter_charge_window_2_start
-  - platform: template
-    name: "Inverter Charge Window 2 End"
-    id: inverter_charge_window_2_end
 
 sensor:
   - platform: bme280_i2c
@@ -1290,9 +1283,15 @@ sensor:
     value_type: U_WORD
     register_count: 1
     accuracy_decimals: 1
-
+  - platform: template
+    id: pv_power
+    name: "PV_Power"
+    unit_of_measurement: "kW"
+    accuracy_decimals: 4
+    lambda: |-
+      return id(pv1_power).state + id(pv2_power).state;
+    update_interval: 60s
   
-
 select:
   - platform: template
     name: "Forced Charge Window 1"
