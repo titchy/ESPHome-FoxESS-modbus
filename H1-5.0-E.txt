@@ -32,6 +32,10 @@ wifi:
 
 captive_portal:
 
+time:
+  - platform: homeassistant
+    id: ha_time
+
 uart:
   id: uart_1
   tx_pin: 16
@@ -55,7 +59,7 @@ i2c:
   frequency: 50kHz
 
 modbus:
-  #send_wait_time: 200ms
+  send_wait_time: 200ms
   uart_id: uart_1
   id: mod_bus1
   flow_control_pin: 4
@@ -64,8 +68,8 @@ modbus_controller:
 - id: inverterBus
   address: 245
   modbus_id: mod_bus1
-  #command_throttle: 400ms
-  setup_priority: -10
+  command_throttle: 1000ms
+  setup_priority: -20
   #update_interval: 30s
 
 button:
@@ -92,13 +96,36 @@ button:
           ESP_LOGV("main", "Setting charge window with data");
           esphome::modbus_controller::ModbusCommandItem set_charge_data_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(controller, 41001, charge_data.size(), charge_data);
           controller->queue_command(set_charge_data_command);
+  - platform: template
+    name: "Set Inverter Clock" #Going to grab time now and set clock
+    id: set_inverter_clock
+    on_press:
+      - logger.log: "Set Inverter Clock Pressed"
+      - lambda: |-
+          ESP_LOGV("main", "Set Inverter Clock Button Pressed");
+          auto theTime = id(ha_time).now();
+          esphome::modbus_controller::ModbusController *acontroller = id(inverterBus);
+          // 1 or 0 in 1st and 4th register and HighByte=Hour,LowByte=Minutes in 2nd 3rd 5th and 6th registers
+          std::vector<uint16_t> rtc_data = {
+            uint16_t((theTime.minute << 8) | theTime.second), 
+            uint16_t((theTime.day_of_month << 8) | theTime.hour),
+            uint16_t((theTime.year << 8) | theTime.month)
+          };
+          ESP_LOGV("main", "Setting Inverter Clock...");
+          esphome::modbus_controller::ModbusCommandItem set_charge_data_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(acontroller, 11093, rtc_data.size(), rtc_data);
+          acontroller->queue_command(set_charge_data_command);
 
 datetime:
-  #- platform: template
-  #  type: datetime 
-  #  name: "Inverter Clock"
-  #  id: inverter_clock
-  #  optimistic: yes
+  - platform: template
+    type: date 
+    name: "Clock Date"
+    id: clock_date
+    optimistic: yes
+  - platform: template
+    type: time 
+    name: "Clock Time"
+    id: clock_time
+    optimistic: yes
   - platform: template
     type: time
     name: "Charge Window 1 Start"
@@ -181,29 +208,17 @@ text_sensor:
             int day = time_info->tm_mday;
             int month = time_info->tm_mon + 1;
             int year = time_info->tm_year % 100;
-            // correct time if needed (ignore seconds)
-            if (d != day || month_ != month || y != year || h != hour || m != minutes) {
-              ESP_LOGV("RTCModbusLambda", "RTC is not set correctly, setting...");
-            //  esphome::modbus_controller::ModbusController *thecontroller = id(inverterBus);
-            //  // create the payload
-            // std::vector<uint16_t> rtc_data = {
-            //    uint16_t((minutes << 8) | seconds), 
-            //    uint16_t((day << 8) | hour),
-            //    uint16_t((year << 8) | month)
-            //  };
-            //  // Create a modbus command item with the time information as the payload
-            //  esphome::modbus_controller::ModbusCommandItem set_rtc_command = esphome::modbus_controller::ModbusCommandItem::create_write_multiple_command(thecontroller, 11093, 3, rtc_data);
-            //  // Submit the command to the send queue
-            //  thecontroller->queue_command(set_rtc_command);
-            //  ESP_LOGI("RTCModbusLambda", "RTC set to %02d:%02d:%02d %02d.%02d.%04d", hour, minutes, seconds, day, month, year + 2000);
-            }
             char buffer[20];
             // format time as YYYY-mm-dd hh:mm:ss
-            sprintf(buffer,"%04d-%02d-%02d %02d:%02d:%02d",y+2000,month_,d,h,m,s);
-            //auto call5 = id(inverter_clock).make_call();
-            //call5.set_date(buffer);
-            //call5.perform();
-            id(inverter_time).publish_state(buffer);
+            sprintf(buffer,"%04d-%02d-%02d",y+2000,month_,d);
+            auto call5 = id(clock_date).make_call();
+            call5.set_date(buffer);
+            call5.perform();
+            sprintf(buffer,"%02d:%02d:%02d",h,m,s);
+            auto call6 = id(clock_time).make_call();
+            call6.set_time(buffer);
+            call6.perform();
+
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     name: "charge_windows"
@@ -263,10 +278,6 @@ text_sensor:
             auto call4 = id(charge_window_2_end).make_call();
             call4.set_time(buffer);
             call4.perform();
-
-  - platform: template
-    name: "Inverter Time"
-    id: inverter_time
 
 sensor:
   - platform: bme280_i2c
