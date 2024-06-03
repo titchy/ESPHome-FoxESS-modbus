@@ -32,6 +32,7 @@ wifi:
 
 captive_portal:
 
+
 time:
   - platform: homeassistant
     id: ha_time
@@ -74,15 +75,15 @@ modbus_controller:
 
 button:
   - platform: template
-    name: "Set Charge Windows" #Going to grab valus from the windows settings and write all 6 modbus parameters back to the inverter
-    id: set_charge_windows
+    name: "Charge Windows Set" #Going to grab valus from the windows settings and write all 6 modbus parameters back to the inverter
+    id: charge_windows_set
     on_press:
       - logger.log: "Set Charge Windows Button pressed"
       - lambda: |-
           ESP_LOGV("main", "Set Charge Windows Button pressed");
           uint16_t Window1Enabled=0,Window2Enabled=0;
-          if (id(forced_charge_window_1).state == "Enable") {Window1Enabled=1;};
-          if (id(forced_charge_window_2).state == "Enable") {Window2Enabled=1;};
+          if (id(charge_window_1).state == "Enable") {Window1Enabled=1;};
+          if (id(charge_window_2).state == "Enable") {Window2Enabled=1;};
           esphome::modbus_controller::ModbusController *controller = id(inverterBus);
           // 1 or 0 in 1st and 4th register and HighByte=Hour,LowByte=Minutes in 2nd 3rd 5th and 6th registers
           std::vector<uint16_t> charge_data = {
@@ -238,9 +239,9 @@ text_sensor:
             // w1enabled 0 or 1 in 1st word bytes 0 and 1 {0=disable,1=enable}
             w1enabled = esphome::modbus_controller::word_from_hex_str(x,0);
             if (w1enabled == 1) {
-              id(forced_charge_window_1).publish_state("Enable");
+              id(charge_window_1).publish_state("Enable");
             } else {
-              id(forced_charge_window_1).publish_state("Disable");
+              id(charge_window_1).publish_state("Disable");
             }
             // w1start High and low bytes in 2nd word, bytes 2 and 3 {HighByte=Hour,LowByte=Minutes}
             w1startHour = esphome::modbus_controller::byte_from_hex_str(x,2);  //High
@@ -251,9 +252,9 @@ text_sensor:
             // w2enabled 0 or 2 in 4th word, bytes 6 and 7 {0=disable,1=enable}
             w2enabled = esphome::modbus_controller::word_from_hex_str(x,6);
             if (w2enabled == 1) {
-              id(forced_charge_window_2).publish_state("Enable");
+              id(charge_window_2).publish_state("Enable");
             } else {
-              id(forced_charge_window_2).publish_state("Disable");
+              id(charge_window_2).publish_state("Disable");
             }
             // w2start High and low bytes in 5th word {HighByte=Hour,LowByte=Minutes}
             w2startHour = esphome::modbus_controller::byte_from_hex_str(x,8);  //High
@@ -415,6 +416,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: pv1_voltage
+    device_class: voltage
+    state_class: measurement
     name: "PV1_Voltage"
     address: 11000
     unit_of_measurement: "V"
@@ -426,6 +429,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: pv1_current
+    device_class: current
+    state_class: measurement
     name: "PV1_Current"
     address: 11001
     unit_of_measurement: "A"
@@ -437,6 +442,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: pv1_power
+    device_class: power
+    state_class: measurement
     name: "PV1_Power"
     address: 11002
     unit_of_measurement: "kW"
@@ -448,6 +455,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: pv2_voltage
+    device_class: voltage
+    state_class: measurement
     name: "PV2_Voltage"
     address: 11003
     unit_of_measurement: "V"
@@ -459,6 +468,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: pv2_current
+    device_class: current
+    state_class: measurement
     name: "PV2_Current"
     address: 11004
     unit_of_measurement: "A"
@@ -470,6 +481,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: pv2_power
+    device_class: power
+    state_class: measurement
     name: "PV2_Power"
     address: 11005
     unit_of_measurement: "kW"
@@ -481,6 +494,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: battery_voltage
+    device_class: voltage
+    state_class: measurement
     name: "Battery_Voltage"
     address: 11006
     unit_of_measurement: "V"
@@ -492,6 +507,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: battery_current
+    device_class: current
+    state_class: measurement
     name: "Battery_Current"
     address: 11007
     unit_of_measurement: "A"
@@ -503,6 +520,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: battery_power
+    device_class: power
+    state_class: measurement
     name: "Battery_Power"
     address: 11008
     unit_of_measurement: "kW"
@@ -514,6 +533,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: grid_voltage
+    device_class: voltage
+    state_class: measurement
     name: "Grid Voltage"
     address: 11009
     unit_of_measurement: "V"
@@ -525,6 +546,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: inverter_current
+    device_class: current
+    state_class: measurement
     name: "Inverter Current"
     address: 11010
     unit_of_measurement: "A"
@@ -536,6 +559,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: inverter_power
+    device_class: power
+    state_class: measurement
     name: "Inverter Power"
     address: 11011
     unit_of_measurement: "kW"
@@ -547,6 +572,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: inverter_power_Q
+    state_class: measurement
     name: "Inverter Power Reactive"
     address: 11012
     unit_of_measurement: "VAR"
@@ -556,6 +582,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: inverter_power_S
+    state_class: measurement
     name: "Inverter Power Apparent"
     address: 11013
     unit_of_measurement: "VA"
@@ -565,6 +592,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: grid_frequency
+    device_class: frequency
+    state_class: measurement
     name: "Grid Frequency"
     address: 11014
     unit_of_measurement: "Hz"
@@ -576,6 +605,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: eps_voltage
+    device_class: voltage
+    state_class: measurement
     name: "EPS Voltage"
     address: 11015
     unit_of_measurement: "V"
@@ -587,6 +618,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: eps_current
+    device_class: current
+    state_class: measurement
     name: "EPS Current"
     address: 11016
     unit_of_measurement: "A"
@@ -598,6 +631,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: eps_power
+    device_class: power
+    state_class: measurement
     name: "EPS Power"
     address: 11017
     unit_of_measurement: "kW"
@@ -609,6 +644,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: eps_power_Q
+    state_class: measurement
     name: "EPS Power Reactive"
     address: 11018
     unit_of_measurement: "VAR"
@@ -618,6 +654,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: eps_power_S
+    state_class: measurement
     name: "EPS Power Apparent"
     address: 11019
     unit_of_measurement: "VA"
@@ -627,6 +664,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: eps_frequency
+    device_class: frequency
+    state_class: measurement
     name: "EPS Frequency"
     address: 11020
     unit_of_measurement: "Hz"
@@ -638,6 +677,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: meter1_power
+    device_class: power
+    state_class: measurement
     name: "Meter1 Power"
     address: 11021
     unit_of_measurement: "kW"
@@ -649,6 +690,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: meter2_power
+    device_class: power
+    state_class: measurement
     name: "Meter2 Power"
     address: 11022
     unit_of_measurement: "kW"
@@ -660,6 +703,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: load_power
+    device_class: power
+    state_class: measurement
     name: "Load Power"
     address: 11023
     unit_of_measurement: "kW"
@@ -671,9 +716,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: inverter_temperature
+    device_class: temperature
+    state_class: measurement
     name: "Inverter Temperature"
     address: 11024
-    unit_of_measurement: "C"
+    unit_of_measurement: "°C"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
@@ -682,9 +729,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: environment_temperature
+    device_class: temperature
+    state_class: measurement
     name: "Environment Temperature"
     address: 11025
-    unit_of_measurement: "C"
+    unit_of_measurement: "°C"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
@@ -694,6 +743,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: cluster_ctrl_f32_PwrFeedback_P
+    device_class: power
+    state_class: measurement
     name: "Cluster Ctrl f32_Pwr Feedback_P"
     address: 11026
     unit_of_measurement: "kW"
@@ -705,6 +756,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: cluster_ctrl_f32_PwrFeedback_Q
+    state_class: measurement
     name: "Cluster Ctrl f32_Pwr Feedback_Q"
     address: 11027
     unit_of_measurement: "kW"
@@ -783,6 +835,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: bat_voltage
+    device_class: voltage
+    state_class: measurement
     name: "Bat Voltage"
     address: 11034
     unit_of_measurement: "V"
@@ -794,6 +848,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: bat_current
+    device_class: current
+    state_class: measurement
     name: "Bat Current"
     address: 11035
     unit_of_measurement: "A"
@@ -805,6 +861,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: bat_soc
+    state_class: measurement
     name: "Bat SOC"
     address: 11036
     unit_of_measurement: "%"
@@ -814,6 +871,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Residual_Energy
+    device_class: energy
+    state_class: total
     name: "Bat Residual Energy"
     address: 11037
     unit_of_measurement: "Wh"
@@ -825,9 +884,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Temperature
+    device_class: temperature
+    state_class: measurement
     name: "Bat Temperature"
     address: 11038
-    unit_of_measurement: "C"
+    unit_of_measurement: "°C"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
@@ -880,9 +941,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Cel_Temp_High
+    device_class: temperature
+    state_class: measurement
     name: "Bat Cel Temp High"
     address: 11043
-    unit_of_measurement: "C"
+    unit_of_measurement: "°C"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
@@ -891,9 +954,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Cel_Temp_Low
+    device_class: temperature
+    state_class: measurement
     name: "Bat Cel Temp Low"
     address: 11044
-    unit_of_measurement: "C"
+    unit_of_measurement: "°C"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
@@ -902,6 +967,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Cel_Voltage_High
+    device_class: voltage
+    state_class: measurement
     name: "Bat Cel Voltage High"
     address: 11045
     unit_of_measurement: "V"
@@ -913,6 +980,8 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Cel_Voltage_Low
+    device_class: voltage
+    state_class: measurement
     name: "Bat Cel Voltage Low"
     address: 11046
     unit_of_measurement: "V"
@@ -932,6 +1001,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Bad_Cycle_Count
+    state_class: total_increasing
     name: "Bat Bad Cycle Count"
     address: 11048
     register_type: read
@@ -940,11 +1010,16 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Energy_Throughput
+    device_class: power
+    state_class: total_increasing
     name: "Bat Energy Throughput"
     address: 11049
     register_type: read
-    value_type: S_WORD
-    accuracy_decimals: 1
+    value_type: U_WORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 4
+    filters:
+      - multiply: 0.001
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Min_Soc
@@ -989,9 +1064,10 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Connect_Time_Count
+    device_class: duration
     name: "Connect Time Count"
     address: 11055
-    unit_of_measurement: "S"
+    unit_of_measurement: "s"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1102,10 +1178,12 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Total_PV_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Total PV Energy"
     address: 11069
     force_new_range: True
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_DWORD
     response_size: 4
@@ -1115,9 +1193,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Today_PV_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Today PV Energy"
     address: 11071
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1126,9 +1206,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Total_Charge_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Total Charge Energy"
     address: 11072
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_DWORD
     response_size: 4
@@ -1138,9 +1220,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Today_Charge_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Today Charge Energy"
     address: 11074
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1149,9 +1233,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Total_Discharge_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Total Discharge Energy"
     address: 11075
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_DWORD
     response_size: 4
@@ -1161,9 +1247,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Today_Discharge_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Today Discharge Energy"
     address: 11077
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1172,9 +1260,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Total_feed_in_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Total feed-in Energy"
     address: 11078
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_DWORD
     response_size: 4
@@ -1184,9 +1274,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Today_feed_in_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Today feed-in Energy"
     address: 11080
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1195,9 +1287,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Total_consumption_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Total consumption Energy"
     address: 11081
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_DWORD
     response_size: 4
@@ -1207,9 +1301,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Today_consumption_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Today consumption Energy"
     address: 11083
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1218,9 +1314,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Total_Output_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Total Output Energy"
     address: 11084
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_DWORD
     response_size: 4
@@ -1230,9 +1328,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Today_Output_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Today Output Energy"
     address: 11086
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1241,9 +1341,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Total_Input_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Total Input Energy"
     address: 11087
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_DWORD
     response_size: 4
@@ -1253,9 +1355,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Today_Input_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Today Input Energy"
     address: 11089
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1264,9 +1368,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Total_Load_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Total Load Energy"
     address: 11090
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_DWORD
     response_size: 4
@@ -1276,9 +1382,11 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Today_Load_Energy
+    device_class: energy
+    state_class: total_increasing
     name: "Today Load Energy"
     address: 11092
-    unit_of_measurement: "Kwh"
+    unit_of_measurement: "kWh"
     register_type: read
     value_type: U_WORD
     accuracy_decimals: 1
@@ -1305,15 +1413,15 @@ sensor:
   
 select:
   - platform: template
-    name: "Forced Charge Window 1"
-    id: forced_charge_window_1
+    name: "Charge Window 1"
+    id: charge_window_1
     optimistic: True
     options: 
       - "Enable"
       - "Disable"
   - platform: template
-    name: "Forced Charge Window 2"
-    id: forced_charge_window_2
+    name: "Charge Window 2"
+    id: charge_window_2
     optimistic: True
     options: 
       - "Enable"
