@@ -32,7 +32,6 @@ wifi:
 
 captive_portal:
 
-
 time:
   - platform: homeassistant
     id: ha_time
@@ -88,10 +87,10 @@ button:
           // 1 or 0 in 1st and 4th register and HighByte=Hour,LowByte=Minutes in 2nd 3rd 5th and 6th registers
           std::vector<uint16_t> charge_data = {
           Window1Enabled,
-          uint16_t((id(charge_window_1_start).hour << 8) | id(charge_window_1_start).minute ),
+          uint16_t((id(charge_window_1_begin).hour << 8) | id(charge_window_1_begin).minute ),
           uint16_t((id(charge_window_1_end).hour << 8) | id(charge_window_1_end).minute ),
           Window2Enabled,
-          uint16_t((id(charge_window_2_start).hour << 8) | id(charge_window_2_start).minute ),
+          uint16_t((id(charge_window_2_begin).hour << 8) | id(charge_window_2_begin).minute ),
           uint16_t((id(charge_window_2_end).hour << 8) | id(charge_window_2_end).minute )
           };
           ESP_LOGV("main", "Setting charge window with data");
@@ -129,8 +128,8 @@ datetime:
     optimistic: yes
   - platform: template
     type: time
-    name: "Charge Window 1 Start"
-    id: charge_window_1_start
+    name: "Charge Window 1 Begin"
+    id: charge_window_1_begin
     optimistic: yes
   - platform: template
     type: time
@@ -139,8 +138,8 @@ datetime:
     optimistic: yes
   - platform: template
     type: time
-    name: "Charge Window 2 Start"
-    id: charge_window_2_start
+    name: "Charge Window 2 Begin"
+    id: charge_window_2_begin
     optimistic: yes
   - platform: template
     type: time
@@ -235,7 +234,7 @@ text_sensor:
       then:
         - lambda: |-
             ESP_LOGV("main", "decoding forced charge values encoded raw data: %s", x.c_str());
-            uint8_t w1enabled=0,w2enabled=0,w1startHour=0,w1startMin=0,w1endHour=0,w1endMin=0,w2startHour=0,w2startMin=0,w2endHour=0,w2endMin=0;
+            uint8_t w1enabled=0,w2enabled=0,w1beginHour=0,w1beginMin=0,w1endHour=0,w1endMin=0,w2beginHour=0,w2beginMin=0,w2endHour=0,w2endMin=0;
             // w1enabled 0 or 1 in 1st word bytes 0 and 1 {0=disable,1=enable}
             w1enabled = esphome::modbus_controller::word_from_hex_str(x,0);
             if (w1enabled == 1) {
@@ -243,9 +242,9 @@ text_sensor:
             } else {
               id(charge_window_1).publish_state("Disable");
             }
-            // w1start High and low bytes in 2nd word, bytes 2 and 3 {HighByte=Hour,LowByte=Minutes}
-            w1startHour = esphome::modbus_controller::byte_from_hex_str(x,2);  //High
-            w1startMin = esphome::modbus_controller::byte_from_hex_str(x,3);  //Low
+            // w1begin High and low bytes in 2nd word, bytes 2 and 3 {HighByte=Hour,LowByte=Minutes}
+            w1beginHour = esphome::modbus_controller::byte_from_hex_str(x,2);  //High
+            w1beginMin = esphome::modbus_controller::byte_from_hex_str(x,3);  //Low
             // w1end High and low bytes in 3rd word, bytes 4 and 5 {HighByte=Hour,LowByte=Minutes}
             w1endHour = esphome::modbus_controller::byte_from_hex_str(x,4);  //High
             w1endMin = esphome::modbus_controller::byte_from_hex_str(x,5);  //Low
@@ -256,23 +255,23 @@ text_sensor:
             } else {
               id(charge_window_2).publish_state("Disable");
             }
-            // w2start High and low bytes in 5th word {HighByte=Hour,LowByte=Minutes}
-            w2startHour = esphome::modbus_controller::byte_from_hex_str(x,8);  //High
-            w2startMin = esphome::modbus_controller::byte_from_hex_str(x,9);  //Low
+            // w2begin High and low bytes in 5th word {HighByte=Hour,LowByte=Minutes}
+            w2beginHour = esphome::modbus_controller::byte_from_hex_str(x,8);  //High
+            w2beginMin = esphome::modbus_controller::byte_from_hex_str(x,9);  //Low
             // w2end High and low bytes in 6th word {HighByte=Hour,LowByte=Minutes}
             w2endHour = esphome::modbus_controller::byte_from_hex_str(x,10);  //High
             w2endMin = esphome::modbus_controller::byte_from_hex_str(x,11);  //Low
             char buffer[20];
-            sprintf(buffer,"%02d:%02d:00",w1startHour,w1startMin);
-            auto call1 = id(charge_window_1_start).make_call();
+            sprintf(buffer,"%02d:%02d:00",w1beginHour,w1beginMin);
+            auto call1 = id(charge_window_1_begin).make_call();
             call1.set_time(buffer);
             call1.perform();
             sprintf(buffer,"%02d:%02d:00",w1endHour,w1endMin);
             auto call2 = id(charge_window_1_end).make_call();
             call2.set_time(buffer);
             call2.perform();
-            sprintf(buffer,"%02d:%02d",w2startHour,w2startMin);
-            auto call3 = id(charge_window_2_start).make_call();
+            sprintf(buffer,"%02d:%02d",w2beginHour,w2beginMin);
+            auto call3 = id(charge_window_2_begin).make_call();
             call3.set_time(buffer);
             call3.perform();
             sprintf(buffer,"%02d:%02d",w2endHour,w2endMin);
