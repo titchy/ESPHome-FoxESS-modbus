@@ -571,16 +571,18 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: inverter_power_Q
+    device_class: reactive_power
     state_class: measurement
     name: "Inverter Power Reactive"
     address: 11012
-    unit_of_measurement: "VAR"
+    unit_of_measurement: "var"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: inverter_power_S
+    device_class: apparent_power
     state_class: measurement
     name: "Inverter Power Apparent"
     address: 11013
@@ -643,16 +645,18 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: eps_power_Q
+    device_class: reactive_power
     state_class: measurement
     name: "EPS Power Reactive"
     address: 11018
-    unit_of_measurement: "VAR"
+    unit_of_measurement: "var"
     register_type: read
     value_type: S_WORD
     accuracy_decimals: 1
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: eps_power_S
+    device_class: apparent_power
     state_class: measurement
     name: "EPS Power Apparent"
     address: 11019
@@ -860,6 +864,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: bat_soc
+    device_class: battery
     state_class: measurement
     name: "Bat SOC"
     address: 11036
@@ -1009,7 +1014,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: inverterBus
     id: Bat_Energy_Throughput
-    device_class: power
+    device_class: energy
     state_class: total_increasing
     name: "Bat Energy Throughput"
     address: 11049
